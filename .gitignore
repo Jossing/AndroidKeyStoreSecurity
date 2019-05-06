@@ -1,6 +1,6 @@
 /.idea
 .DS_Store
-
+bintrayPublish.sh
 
 
 # ---- https://github.com/github/gitignore/blob/master/Android.gitignore ----

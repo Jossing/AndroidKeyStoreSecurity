@@ -92,7 +92,7 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
         // 检查本地是否已有合法的 AES 密钥
         val secretKey: SecretKey
         val secretKeyFile = File(dir, NAME)
-        log { Log.d(LOG_TAG, "refreshSecretKey -> 安全密钥文件: (${secretKeyFile.length()})$secretKeyFile") }
+        log { Log.d(LOG_TAG, "checkSecretKey -> 安全密钥文件: (${secretKeyFile.length()})$secretKeyFile") }
         try {
             if (!secretKeyFile.exists()) {
                 log { Log.w(LOG_TAG, "checkSecretKey -> 密钥文件不存在") }
