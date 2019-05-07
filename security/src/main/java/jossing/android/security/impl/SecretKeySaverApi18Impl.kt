@@ -12,7 +12,6 @@ import java.math.BigInteger
 import java.security.KeyPairGenerator
 import java.security.PrivateKey
 import java.security.PublicKey
-import java.security.SecureRandom
 import java.security.spec.RSAKeyGenParameterSpec
 import java.util.*
 import javax.crypto.Cipher
@@ -57,11 +56,11 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
      */
     private val lockTouchSecretKey = Any()
 
-    override fun getSecretKey(alias: String): SecretKey = synchronized(lockTouchSecretKey) {
+    override fun getSecretKey(alias: String): SecretKey {
         return checkSecretKey(alias) ?: refreshSecretKey(alias)
     }
 
-    override fun forceUpdate(alias: String): Unit = synchronized(lockTouchSecretKey) {
+    override fun forceUpdate(alias: String) {
         log { Log.d(LOG_TAG, "forceUpdate -> 准备强制更新密钥") }
         refreshSecretKey(alias)
     }
@@ -71,7 +70,7 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
      *
      * @return 如果没有已有的合法密钥，返回 null
      */
-    private fun checkSecretKey(alias: String): SecretKey? {
+    private fun checkSecretKey(alias: String): SecretKey? = synchronized(lockTouchSecretKey) {
         log { Log.d(LOG_TAG, "checkSecretKey -> 检查安全密钥是否存在") }
         val containsAlias = keyStore.containsAlias(alias)
         if (!containsAlias) {
@@ -115,7 +114,7 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
     /**
      * 生成新的 AES 密钥
      */
-    private fun refreshSecretKey(alias: String): SecretKey {
+    private fun refreshSecretKey(alias: String): SecretKey = synchronized(lockTouchSecretKey) {
         log { Log.d(LOG_TAG, "refreshSecretKey -> 准备生成新的安全密钥") }
         val secretKeyFile = File(dir, NAME)
         log { Log.d(LOG_TAG, "refreshSecretKey -> 安全密钥文件: (${secretKeyFile.length()})$secretKeyFile") }
@@ -141,12 +140,12 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
                 }
                 .build()
         val keyPairGenerator = KeyPairGenerator.getInstance("RSA", ANDROID_KEY_STORE)
-        keyPairGenerator.initialize(keyPairGeneratorSpec, SecureRandom(SecureRandom.getSeed(256)))
+        keyPairGenerator.initialize(keyPairGeneratorSpec, strongSecureRandom)
         val keyPair = keyPairGenerator.genKeyPair()
         log { Log.d(LOG_TAG, "refreshSecretKey -> 生成新的 AES 密钥") }
         // 使用 SecureRandom 生成 AES 密钥
         val keyGenerator = KeyGenerator.getInstance("AES")
-        keyGenerator.init(256, SecureRandom(SecureRandom.getSeed(256)))
+        keyGenerator.init(256, strongSecureRandom)
         val secretKey = keyGenerator.generateKey()
         log { Log.d(LOG_TAG, "refreshSecretKey -> 加密 AES 密钥后保存本地") }
         // RSA 加密 AES 密钥，然后保存到本地
@@ -166,7 +165,7 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
     @Throws(Throwable::class)
     private fun rsaEncryptSecretKey(secretKey: SecretKey, publicKey: PublicKey): ByteArray {
         val cipher = Cipher.getInstance(RSA_TRANSFORMATION)
-        cipher.init(Cipher.WRAP_MODE, publicKey, SecureRandom(SecureRandom.getSeed(256)))
+        cipher.init(Cipher.WRAP_MODE, publicKey, strongSecureRandom)
         return cipher.wrap(secretKey)
     }
 
@@ -176,7 +175,7 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
     @Throws(Throwable::class)
     private fun rsaDecryptSecretKey(secretKey: ByteArray, privateKey: PrivateKey): SecretKey {
         val cipher = Cipher.getInstance(RSA_TRANSFORMATION)
-        cipher.init(Cipher.UNWRAP_MODE, privateKey, SecureRandom(SecureRandom.getSeed(256)))
+        cipher.init(Cipher.UNWRAP_MODE, privateKey, strongSecureRandom)
         return cipher.unwrap(secretKey, "AES", Cipher.SECRET_KEY) as SecretKey
     }
 }

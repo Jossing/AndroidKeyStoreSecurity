@@ -7,7 +7,6 @@ import jossing.android.security.SecureCryptoConfig.log
 import jossing.android.security.SecureCryptoInterface
 import java.lang.IllegalArgumentException
 import java.nio.ByteBuffer
-import java.security.SecureRandom
 import java.security.spec.AlgorithmParameterSpec
 import java.util.*
 import javax.crypto.Cipher
@@ -85,18 +84,16 @@ internal class AndroidKeyStoreSecureCryptoImpl : SecureCryptoInterface, Abstract
         // 构建 Cipher
         val secretKey = getSecretKey(SECRET_KEY_ALIAS)
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
-        val cipherSecureRandom = SecureRandom(SecureRandom.getSeed(256))
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, cipherSecureRandom)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, strongSecureRandom)
         // 计算认证标签大小
         val gcmTagSize = getIvParameterSpec(cipher).run {
             if (this == null) {
                 log { Log.d(LOG_TAG, "encrypt -> 手动导入向量") }
                 // 使用强伪随机源生成随机向量
-                val ivSecureRandom = SecureRandom(SecureRandom.getSeed(256))
                 val ivBytes = ByteArray(IV_LENGTH)
-                ivSecureRandom.nextBytes(ivBytes)
+                strongSecureRandom.nextBytes(ivBytes)
                 val ivParameterSpec = genIvParameterSpec(ivBytes = ivBytes)
-                cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivParameterSpec, cipherSecureRandom)
+                cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivParameterSpec, strongSecureRandom)
                 ivParameterSpec
             } else {
                 log { Log.d(LOG_TAG, "encrypt -> 自动生成向量") }
@@ -111,12 +108,11 @@ internal class AndroidKeyStoreSecureCryptoImpl : SecureCryptoInterface, Abstract
     }
 
     override fun decrypt(cipherText: ByteArray): ByteArray {
-        val secureRandom = SecureRandom(SecureRandom.getSeed(256))
         val cipherMessage = CipherMessage.unwrap(cipherText)
         val secretKey = getSecretKey(SECRET_KEY_ALIAS)
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
         val ivParameterSpec = genIvParameterSpec(cipherMessage.tagSize, cipherMessage.ivBytes)
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, ivParameterSpec, secureRandom)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, ivParameterSpec, strongSecureRandom)
         return cipher.doFinal(cipherMessage.cipherText)
     }
 

@@ -1,6 +1,7 @@
 package jossing.android.security
 
 import java.security.KeyStore
+import java.security.SecureRandom
 import javax.crypto.SecretKey
 
 /**
@@ -17,6 +18,13 @@ abstract class AbstractSecretKeySaver {
     }
 
     protected val keyStore get() = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
+
+    /**
+     * 建议使用的强伪随机源
+     */
+    protected val strongSecureRandom by lazy { kotlin.runCatching {
+        SecureRandom.getInstance("SHA1PRNG")
+    }.getOrDefault(SecureRandom(SecureRandom.getSeed(256))) }
 
     /**
      * 获取安全密钥
