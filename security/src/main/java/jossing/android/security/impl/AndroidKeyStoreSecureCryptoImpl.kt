@@ -7,6 +7,9 @@ import jossing.android.security.SecureCryptoConfig.log
 import jossing.android.security.SecureCryptoInterface
 import java.lang.IllegalArgumentException
 import java.nio.ByteBuffer
+import java.security.Key
+import java.security.PrivateKey
+import java.security.PublicKey
 import java.security.spec.AlgorithmParameterSpec
 import java.util.*
 import javax.crypto.Cipher
@@ -80,11 +83,21 @@ internal class AndroidKeyStoreSecureCryptoImpl : SecureCryptoInterface, Abstract
         }}.getOrNull()
     }
 
-    override fun encrypt(content: ByteArray): ByteArray {
+    /**
+     * 加密。[content] 可以是 [ByteArray]，也可以是 [Key]，否则将抛出 [UnsupportedOperationException]
+     */
+    @Throws(UnsupportedOperationException::class)
+    private fun encrypt(content: Any): ByteArray {
+        // 检查入参，判断应该使用普通加密模式，还是密钥包装模式
+        val cipherOpMode = when (content) {
+            is ByteArray -> Cipher.ENCRYPT_MODE
+            is Key -> Cipher.WRAP_MODE
+            else -> throw UnsupportedOperationException("content type unsupported")
+        }
         // 构建 Cipher
         val secretKey = getSecretKey(SECRET_KEY_ALIAS)
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, strongSecureRandom)
+        cipher.init(cipherOpMode, secretKey, strongSecureRandom)
         // 计算认证标签大小
         val gcmTagSize = getIvParameterSpec(cipher).run {
             if (this == null) {
@@ -93,27 +106,72 @@ internal class AndroidKeyStoreSecureCryptoImpl : SecureCryptoInterface, Abstract
                 val ivBytes = ByteArray(IV_LENGTH)
                 strongSecureRandom.nextBytes(ivBytes)
                 val ivParameterSpec = genIvParameterSpec(ivBytes = ivBytes)
-                cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivParameterSpec, strongSecureRandom)
+                cipher.init(cipherOpMode, secretKey, ivParameterSpec, strongSecureRandom)
                 ivParameterSpec
             } else {
                 log { Log.d(LOG_TAG, "encrypt -> 自动生成向量") }
                 this
             }
-        }.run { if (isOverApi21) (this as GCMParameterSpec).tLen else 0 }
-        log { Log.d(LOG_TAG, "encrypt -> 用于 GCM 模式的认证标签大小：$gcmTagSize") }
+        }.run { if (isOverApi21) {
+            (this as GCMParameterSpec).tLen.also {
+                log { Log.d(LOG_TAG, "encrypt -> 用于 GCM 模式的认证标签大小：$it") }
+            }
+        } else 0 }
         // 加密
-        val cipherText = cipher.doFinal(content)
+        val cipherText = when (cipherOpMode) {
+            Cipher.ENCRYPT_MODE -> cipher.doFinal(content as ByteArray)
+            else -> cipher.wrap(content as Key)
+        }
         // 拼装密文
         return CipherMessage.wrap(gcmTagSize, cipher.iv, cipherText)
     }
 
-    override fun decrypt(cipherText: ByteArray): ByteArray {
+    /**
+     * 解密。若解密目标非 [Key]，那么 [wrappedKeyAlgorithm] 不能为空。
+     * @param wrappedKeyAlgorithm 密钥算法的名称
+     */
+    private fun <T : Any> decrypt(cipherText: ByteArray, wrappedKeyAlgorithm: String?, clazz: Class<T>): T {
+        // 检查入参，判断应该使用普通加密模式，还是密钥包装模式
+        // 如果是密钥包装模式，检查密钥类型是公钥、私钥，或是对称密钥
+        val wrappedKeyType: Int
+        val cipherOpMode = if (clazz == ByteArray::class.java) {
+            wrappedKeyType = -1
+            Cipher.DECRYPT_MODE
+        } else if (Key::class.java.isAssignableFrom(clazz)) {
+            wrappedKeyType = if (SecretKey::class.java.isAssignableFrom(clazz)) {
+                Cipher.SECRET_KEY
+            } else if (PublicKey::class.java.isAssignableFrom(clazz)) {
+                Cipher.PUBLIC_KEY
+            } else if (PrivateKey::class.java.isAssignableFrom(clazz)) {
+                Cipher.PRIVATE_KEY
+            } else {
+                throw UnsupportedOperationException("cipherText type unsupported -> $clazz")
+            }
+            Cipher.UNWRAP_MODE
+        } else {
+            throw UnsupportedOperationException("cipherText type unsupported -> $clazz")
+        }
         val cipherMessage = CipherMessage.unwrap(cipherText)
         val secretKey = getSecretKey(SECRET_KEY_ALIAS)
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
         val ivParameterSpec = genIvParameterSpec(cipherMessage.tagSize, cipherMessage.ivBytes)
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, ivParameterSpec, strongSecureRandom)
-        return cipher.doFinal(cipherMessage.cipherText)
+        cipher.init(cipherOpMode, secretKey, ivParameterSpec, strongSecureRandom)
+        // 解密
+        @Suppress("UNCHECKED_CAST")
+        return when (cipherOpMode) {
+            Cipher.DECRYPT_MODE -> cipher.doFinal(cipherMessage.cipherText) as T
+            else -> cipher.unwrap(cipherMessage.cipherText, wrappedKeyAlgorithm!!, wrappedKeyType) as T
+        }
+    }
+
+    override fun encrypt(content: ByteArray) = encrypt(content as Any)
+
+    override fun decrypt(cipherText: ByteArray) = decrypt(cipherText, null, ByteArray::class.java)
+
+    override fun wrap(key: Key) = encrypt(key as Any)
+
+    override fun <T : Key> unwrap(keyBytes: ByteArray, wrappedKeyAlgorithm: String, wrappedKeyType: Class<T>): T {
+        return decrypt(keyBytes, wrappedKeyAlgorithm, wrappedKeyType)
     }
 
     override fun getSecretKey(alias: String): SecretKey {

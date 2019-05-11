@@ -2,6 +2,7 @@ package jossing.android.security
 
 import jossing.android.security.SecureCryptoConfig.log
 import jossing.android.security.impl.AndroidKeyStoreSecureCryptoImpl
+import java.security.Key
 
 
 /**
@@ -62,6 +63,56 @@ object SecureCrypto {
         }
         return try {
             secureCryptoImpl.decrypt(cipherText)
+        } catch (tr: Throwable) {
+            onFailed(tr)
+            null
+        }
+    }
+
+    /**
+     * 加密密钥
+     *
+     * @param key 密钥
+     * @param onFailed 加密异常时调用的函数。可以自行处理异常，自定义加密异常时的返回值
+     * @return 经过加密的密钥
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun wrap(key: Key?, onFailed: (Throwable) -> Unit = defaultOnFailed): ByteArray? {
+        if (key == null) {
+            onFailed(NullPointerException("key is null!"))
+            return null
+        }
+        return try {
+            secureCryptoImpl.wrap(key)
+        } catch (tr: Throwable) {
+            onFailed(tr)
+            null
+        }
+    }
+
+    /**
+     * 解密密钥
+     *
+     * @param keyBytes 经过加密的密钥
+     * @param wrappedKeyAlgorithm 密钥算法名称
+     * @param wrappedKeyType 密钥类型
+     * @param onFailed 解密异常时调用的函数。可以自行处理异常，自定义解密异常时的返回值
+     * @return 密钥
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun <T : Key> unwrap(keyBytes: ByteArray?, wrappedKeyAlgorithm: String?, wrappedKeyType: Class<T>, onFailed: (Throwable) -> Unit = defaultOnFailed): T? {
+        if (keyBytes == null) {
+            onFailed(NullPointerException("keyBytes is null!"))
+            return null
+        }
+        if (wrappedKeyAlgorithm == null) {
+            onFailed(NullPointerException("wrappedKeyAlgorithm is null!"))
+            return null
+        }
+        return try {
+            secureCryptoImpl.unwrap(keyBytes, wrappedKeyAlgorithm, wrappedKeyType)
         } catch (tr: Throwable) {
             onFailed(tr)
             null

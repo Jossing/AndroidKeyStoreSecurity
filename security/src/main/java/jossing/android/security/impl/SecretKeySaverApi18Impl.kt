@@ -1,9 +1,9 @@
 package jossing.android.security.impl
 
+import android.annotation.TargetApi
 import android.os.Build
 import android.security.KeyPairGeneratorSpec
 import android.util.Log
-import androidx.annotation.RequiresApi
 import jossing.android.security.AbstractSecretKeySaver
 import jossing.android.security.SecureCryptoConfig.appContext
 import jossing.android.security.SecureCryptoConfig.log
@@ -28,7 +28,7 @@ import javax.security.auth.x500.X500Principal
  * @author jossing
  * @date 2019/4/16
  */
-@RequiresApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
+@TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
 class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
 
     companion object {

@@ -1,10 +1,10 @@
 package jossing.android.security.impl
 
+import android.annotation.TargetApi
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Log
-import androidx.annotation.RequiresApi
 import jossing.android.security.AbstractSecretKeySaver
 import jossing.android.security.SecureCryptoConfig.log
 import javax.crypto.KeyGenerator
@@ -18,7 +18,7 @@ import javax.crypto.SecretKey
  * @author jossing
  * @date 2019/4/16
  */
-@RequiresApi(Build.VERSION_CODES.M)
+@TargetApi(Build.VERSION_CODES.M)
 class SecretKeySaverApi23Impl : AbstractSecretKeySaver() {
 
     companion object {
