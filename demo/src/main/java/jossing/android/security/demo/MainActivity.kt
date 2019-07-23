@@ -1,5 +1,6 @@
 package jossing.android.security.demo
 
+import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.text.Editable
@@ -27,7 +28,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         applicationContext.also {
-            SecureCryptoConfig.setAppContext { it }
+            SecureCryptoConfig.setAppContext(it)
             SecureCryptoConfig.setDebugable(true)
         }
 
@@ -101,10 +102,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem?): Boolean {
-        if (item?.itemId == R.id.menu_switch) {
-            item.isChecked = !item.isChecked
-            mode = if (item.isChecked) 1 else 0
-            checkModeChanged()
+        when (item?.itemId) {
+            R.id.menu_safe -> {
+                startActivity(Intent(this, ThreadSafeActivity::class.java))
+            }
+            R.id.menu_switch -> {
+                item.isChecked = !item.isChecked
+                mode = if (item.isChecked) 1 else 0
+                checkModeChanged()
+            }
         }
         return super.onOptionsItemSelected(item)
     }

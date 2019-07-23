@@ -22,7 +22,7 @@ abstract class AbstractSecretKeySaver {
     /**
      * 建议使用的强伪随机源
      */
-    protected val strongSecureRandom by lazy { kotlin.runCatching {
+    protected val strongSecureRandom by lazy { runCatching {
         SecureRandom.getInstance("SHA1PRNG")
     }.getOrDefault(SecureRandom(SecureRandom.getSeed(256))) }
 

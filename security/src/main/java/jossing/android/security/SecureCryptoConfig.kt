@@ -1,5 +1,6 @@
 package jossing.android.security
 
+import android.app.Application
 import android.content.Context
 import jossing.android.security.impl.AndroidKeyStoreSecureCryptoImpl
 
@@ -11,11 +12,11 @@ import jossing.android.security.impl.AndroidKeyStoreSecureCryptoImpl
  */
 object SecureCryptoConfig {
 
-    private lateinit var context: () -> Context
+    private lateinit var context: Application
 
     internal val appContext: Context get() {
         return try {
-            context()
+            context
         } catch (tr: UninitializedPropertyAccessException) {
             throw UninitializedPropertyAccessException("必须先调用 SecureCryptoConfig.setAppContext", tr)
         }
@@ -24,8 +25,8 @@ object SecureCryptoConfig {
     private var debugable = BuildConfig.DEBUG
 
     @JvmStatic
-    fun setAppContext(context: () -> Context) {
-        SecureCryptoConfig.context = { context().applicationContext }
+    fun setAppContext(context: Context) {
+        SecureCryptoConfig.context = context.applicationContext as Application
     }
 
     /**

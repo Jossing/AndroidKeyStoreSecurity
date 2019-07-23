@@ -3,6 +3,12 @@
       xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+            android:id="@+id/menu_safe"
+            android:title="线程安全"
+            android:icon="@drawable/ic_stars_black_24dp"
+            app:showAsAction="ifRoom" />
+
+    <item
             android:id="@+id/menu_switch"
             android:title="模式切换"
             android:icon="@drawable/ic_cached_white_24dp"

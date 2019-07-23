@@ -57,12 +57,16 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
     private val lockTouchSecretKey = Any()
 
     override fun getSecretKey(alias: String): SecretKey {
-        return checkSecretKey(alias) ?: refreshSecretKey(alias)
+        return checkSecretKey(alias) ?: synchronized(lockTouchSecretKey) {
+            checkSecretKey(alias) ?: refreshSecretKey(alias)
+        }
     }
 
     override fun forceUpdate(alias: String) {
         log { Log.d(LOG_TAG, "forceUpdate -> 准备强制更新密钥") }
-        refreshSecretKey(alias)
+        synchronized(lockTouchSecretKey) {
+            refreshSecretKey(alias)
+        }
     }
 
     /**
@@ -70,7 +74,7 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
      *
      * @return 如果没有已有的合法密钥，返回 null
      */
-    private fun checkSecretKey(alias: String): SecretKey? = synchronized(lockTouchSecretKey) {
+    private fun checkSecretKey(alias: String): SecretKey? {
         log { Log.d(LOG_TAG, "checkSecretKey -> 检查安全密钥是否存在") }
         val containsAlias = keyStore.containsAlias(alias)
         if (!containsAlias) {
@@ -79,17 +83,16 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
         // 检查 AndroidKeyStore 中是否存在 RSA 密钥对
         val privateKey: PrivateKey
         try {
-            privateKey = keyStore.getKey(alias, null) as? PrivateKey ?: return null
-            keyStore.getCertificate(alias)?.publicKey ?: return null
+            privateKey = keyStore.getKey(alias, null) as PrivateKey
+            val publicKey: PublicKey = keyStore.getCertificate(alias).publicKey
         } catch (tr: Throwable) {
-            kotlin.runCatching {
+            runCatching {
                 keyStore.deleteEntry(alias)
             }
             log { Log.w(LOG_TAG, "checkSecretKey -> AndroidKeyStore 中不存在有效的 RSA 密钥对", tr) }
             return null
         }
         // 检查本地是否已有合法的 AES 密钥
-        val secretKey: SecretKey
         val secretKeyFile = File(dir, NAME)
         log { Log.d(LOG_TAG, "checkSecretKey -> 安全密钥文件: (${secretKeyFile.length()})$secretKeyFile") }
         try {
@@ -100,27 +103,27 @@ class SecretKeySaverApi18Impl : AbstractSecretKeySaver() {
             val key = FileInputStream(secretKeyFile).buffered().use {
                 it.readBytes()
             }
-            secretKey = rsaDecryptSecretKey(key, privateKey)
+            val secretKey = rsaDecryptSecretKey(key, privateKey)
+            log { Log.d(LOG_TAG, "checkSecretKey -> 安全密钥存在") }
+            // 通过了层层校验，确实已存在能用的 AES 密钥
+            return secretKey
         } catch (tr: Throwable) {
             secretKeyFile.delete()
             log { Log.w(LOG_TAG, "checkSecretKey -> 存储到本地的 AES 密钥非法", tr) }
-            return null
         }
-        log { Log.d(LOG_TAG, "checkSecretKey -> 安全密钥存在") }
-        // 通过了层层校验，确实已存在能用的 AES 密钥
-        return secretKey
+        return null
     }
 
     /**
      * 生成新的 AES 密钥
      */
-    private fun refreshSecretKey(alias: String): SecretKey = synchronized(lockTouchSecretKey) {
+    private fun refreshSecretKey(alias: String): SecretKey {
         log { Log.d(LOG_TAG, "refreshSecretKey -> 准备生成新的安全密钥") }
         val secretKeyFile = File(dir, NAME)
         log { Log.d(LOG_TAG, "refreshSecretKey -> 安全密钥文件: (${secretKeyFile.length()})$secretKeyFile") }
         // 原有的 RSA 密钥对，和 AES 密钥直接删除
         log { Log.d(LOG_TAG, "refreshSecretKey -> 删除已有的安全密钥") }
-        kotlin.runCatching {
+        runCatching {
             secretKeyFile.delete()
             keyStore.deleteEntry(alias)
         }

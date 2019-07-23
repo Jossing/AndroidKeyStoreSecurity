@@ -3,7 +3,7 @@ apply plugin: 'kotlin-android'
 apply plugin: 'com.novoda.bintray-release'
 
 ext {
-    moduleVersionName = '1.1.0'
+    moduleVersionName = '1.1.1'
 }
 
 android {
